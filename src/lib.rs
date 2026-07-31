@@ -11,6 +11,7 @@
 //!
 
 use log::{Level, LevelFilter, Log, Metadata, Record};
+use std::sync::mpsc::Receiver;
 use std::sync::{Arc, RwLock, RwLockReadGuard, TryLockError};
 use std::time::SystemTime;
 
@@ -24,6 +25,67 @@ mod impls;
 mod util;
 
 pub use error::Error;
+
+/// Initializes `log` to forward all log to stderr using the short format
+/// A copy of all log messages will be buffered into the returned receiver.
+///
+/// The short format does not contain thread id's or 'times' and can be used with asserts.
+///
+/// Note that if you do *NOT* remove elements from the returned receiver then eventually
+/// your application will run out of memory as the Receiver will infinitely buffer
+/// the log messages.
+///
+/// You can drop the returned receiver at any time, the log messages will still be sent
+/// to stderr afterward. You also won't run out of memory as the appender realizes that
+/// the receiver has been dropped.
+///
+/// # Example
+/// ```rust no_run
+///
+/// use log::{info, LevelFilter};
+///
+/// fn under_test() {
+///   info!("Huzaah! it works");
+/// }
+///
+/// #[test]
+/// // Remember that the logger is process wide! This may be needed.
+/// //#[serial_test::serial]
+/// fn my_test() {
+///   // Note that if you have multiple tests,
+///   // this call will also clean the still buffered state from previous tests.
+///   // So you don't need to worry about cleanup overly much.
+///   let receiver = trivial_log::init_for_unit_test(LevelFilter::Info).expect("Failed to init logger");
+///
+///   //Placeholder for your actual test!
+///   under_test();
+///
+///   //Ensures that no further messages can get added to the receiver!
+///   //Alternatively call trivial_log::init_stderr() if you still want to log to stderr after this.
+///   trivial_log::free();
+///
+///   let mut messages: Vec<String> = Vec::new();
+///   //This loop will break after all buffered messages were received because trivial_log::free() will drop the connected Sender!
+///   while let Ok(received) = receiver.recv() {
+///     messages.push(received);
+///   }
+///
+///   assert_eq!(messages.len(), 1);
+///   assert_eq!(messages[0].as_str(), "[I] Huzaah! it works\n");
+/// }
+/// ```
+///
+/// # Errors
+/// Only if there is already another log implementation initialized
+pub fn init_for_unit_test(level: LevelFilter) -> Result<Receiver<String>, Error> {
+  let (snd, rcv) = std::sync::mpsc::channel();
+  builder()
+    .short_format(|builder| {
+      builder.appender_filter(level, |msg: &String| eprint!("{msg}")).appender_filter(level, snd)
+    })
+    .init()?;
+  Ok(rcv)
+}
 
 /// Initializes `log` to forward all log to stdout using the default format
 /// # Errors
@@ -146,6 +208,20 @@ impl Builder {
     builder: impl FnOnce(AppenderBuilder<String>) -> AppenderBuilder<String>,
   ) -> Self {
     self.format(util::default_format, builder)
+  }
+
+  /// Use the short format for some appenders.
+  /// The passed builder argument `FnOnce` can be used to register the appenders.
+  ///
+  /// The short format will not contain timestamps or thread id's and is suitable for reproducible log outputs.
+  ///
+  /// Note: It will lead to better performance if all appenders that use the same format are grouped together and registered in the same closure!
+  #[must_use]
+  pub fn short_format(
+    self,
+    builder: impl FnOnce(AppenderBuilder<String>) -> AppenderBuilder<String>,
+  ) -> Self {
+    self.format(util::short_format, builder)
   }
 
   /// Use a provided format for some appenders.

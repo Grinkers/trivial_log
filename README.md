@@ -1,4 +1,4 @@
-# Trivial
+# Trivial Log
 This is intended to be a no-bloat implementation for [log](https://github.com/rust-lang/log).
 It includes simple defaults while still providing good flexibility for more advanced use cases.
 
@@ -6,6 +6,11 @@ It includes simple defaults while still providing good flexibility for more adva
 The original motivation was logging while running valgrind tests that treat "possibly leaked" as errors.
 Unlike many other implementations, this crate intends to have no possible memory leaks (even 'static).
 All examples should have `All heap blocks were freed -- no leaks are possible`.
+
+Note: Since rust version 1.87 the rust standard library will always leak a single BTreeMap. 
+There is nothing that can be done about it. Either suppress that specific error or use rust 1.86 or older
+to compile your program.
+See: https://github.com/rust-lang/rust/issues/146352
 
 # Examples
 

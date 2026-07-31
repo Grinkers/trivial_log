@@ -34,6 +34,30 @@ pub const fn get_idx_for_level(level: Level) -> usize {
   }
 }
 
+/// Short format without time and thread id.
+///
+/// # Use case
+/// This format is useful for use in unit tests as this format outputs the same output every time while
+/// also remaining human-readable.
+pub fn short_format(_: SystemTime, record: &Record<'_>) -> Option<String> {
+  use std::fmt::Write;
+  let prefix = match record.metadata().level() {
+    Level::Error => "[E]",
+    Level::Warn => "[W]",
+    Level::Info => "[I]",
+    Level::Debug => "[D]",
+    Level::Trace => "[T]",
+  };
+
+  let mut buf = String::with_capacity(128);
+
+  if writeln!(buf, "{} {}", prefix, record.args()).is_ok() {
+    return Some(buf);
+  }
+
+  None
+}
+
 /// The default log message format used.
 pub fn default_format(now: SystemTime, record: &Record<'_>) -> Option<String> {
   use std::fmt::Write;
