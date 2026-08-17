@@ -91,58 +91,21 @@ pub fn init_for_unit_test(level: LevelFilter) -> Result<Receiver<String>, Error>
 /// # Errors
 /// Only if there is already another log implementation initialized
 pub fn init_stdout(level: LevelFilter) -> Result<(), Error> {
-  builder()
-    .default_format(|builder| builder.appender_filter(level, |msg: &String| print!("{msg}")))
-    .init()
+  builder().add_stdout(level).init()
 }
 
 /// Initializes `log` to forward all log to stderr using the default format
 /// # Errors
 /// Only if there is already another log implementation initialized
 pub fn init_stderr(level: LevelFilter) -> Result<(), Error> {
-  builder()
-    .default_format(|builder| builder.appender_filter(level, |msg: &String| eprint!("{msg}")))
-    .init()
+  builder().add_stderr(level).init()
 }
 
 /// Initializes `log` to forward all warn and below to stdout and all error to stderr
 /// # Errors
 /// Only if there is already another log implementation initialized
 pub fn init_std(level: LevelFilter) -> Result<(), Error> {
-  match level {
-    LevelFilter::Off => builder().init(),
-    LevelFilter::Error => builder()
-      .default_format(|builder| builder.appender(Level::Error, |msg: &String| eprint!("{msg}")))
-      .init(),
-    LevelFilter::Warn => builder()
-      .default_format(|builder| {
-        builder
-          .appender(Level::Warn, |msg: &String| eprint!("{msg}"))
-          .appender(Level::Error, |msg: &String| eprint!("{msg}"))
-      })
-      .init(),
-    LevelFilter::Info => builder()
-      .default_format(|builder| {
-        builder
-          .appender_range(Level::Info, Level::Warn, |msg: &String| eprint!("{msg}"))
-          .appender(Level::Error, |msg: &String| eprint!("{msg}"))
-      })
-      .init(),
-    LevelFilter::Debug => builder()
-      .default_format(|builder| {
-        builder
-          .appender_range(Level::Debug, Level::Warn, |msg: &String| eprint!("{msg}"))
-          .appender(Level::Error, |msg: &String| eprint!("{msg}"))
-      })
-      .init(),
-    LevelFilter::Trace => builder()
-      .default_format(|fmt| {
-        fmt
-          .appender_range(Level::Trace, Level::Warn, |msg: &String| eprint!("{msg}"))
-          .appender(Level::Error, |msg: &String| eprint!("{msg}"))
-      })
-      .init(),
-  }
+  builder().add_std(level).init()
 }
 
 #[must_use]
@@ -222,6 +185,48 @@ impl Builder {
     builder: impl FnOnce(AppenderBuilder<String>) -> AppenderBuilder<String>,
   ) -> Self {
     self.format(util::short_format, builder)
+  }
+
+  /// Adds an appender to this builder that forwards all log to stdout using the default format
+  #[must_use]
+  pub fn add_stdout(self, level: LevelFilter) -> Self {
+    self.default_format(|builder| builder.appender_filter(level, |msg: &String| print!("{msg}")))
+  }
+
+  /// Adds an appender to this builder that forwards all log to stderr using the default format
+  #[must_use]
+  pub fn add_stderr(self, level: LevelFilter) -> Self {
+    self.default_format(|builder| builder.appender_filter(level, |msg: &String| eprint!("{msg}")))
+  }
+
+  /// Adds an appender to this builder that forwards all warn and below to stdout and all error to stderr
+  #[must_use]
+  pub fn add_std(self, level: LevelFilter) -> Self {
+    match level {
+      LevelFilter::Off => self,
+      LevelFilter::Error => self
+        .default_format(|builder| builder.appender(Level::Error, |msg: &String| eprint!("{msg}"))),
+      LevelFilter::Warn => self.default_format(|builder| {
+        builder
+          .appender(Level::Warn, |msg: &String| eprint!("{msg}"))
+          .appender(Level::Error, |msg: &String| eprint!("{msg}"))
+      }),
+      LevelFilter::Info => self.default_format(|builder| {
+        builder
+          .appender_range(Level::Info, Level::Warn, |msg: &String| eprint!("{msg}"))
+          .appender(Level::Error, |msg: &String| eprint!("{msg}"))
+      }),
+      LevelFilter::Debug => self.default_format(|builder| {
+        builder
+          .appender_range(Level::Debug, Level::Warn, |msg: &String| eprint!("{msg}"))
+          .appender(Level::Error, |msg: &String| eprint!("{msg}"))
+      }),
+      LevelFilter::Trace => self.default_format(|fmt| {
+        fmt
+          .appender_range(Level::Trace, Level::Warn, |msg: &String| eprint!("{msg}"))
+          .appender(Level::Error, |msg: &String| eprint!("{msg}"))
+      }),
+    }
   }
 
   /// Use a provided format for some appenders.
